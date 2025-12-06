@@ -1,6 +1,16 @@
 // src/App.js
-import React, { useEffect, useState, useRef } from "react";
-import { db, ref, set, onValue, update, get, runTransaction } from "./firebase";
+import React, { useEffect, useState, useRef, useCallback } from "react";
+import {
+  db,
+  ref,
+  set,
+  push,
+  onValue,
+  update,
+  get,
+  runTransaction,
+  serverTimestamp,
+} from "./firebase";
 import {
   Box,
   Typography,
@@ -8,10 +18,10 @@ import {
   Button,
   Paper,
   Avatar,
-  Grid
+  Grid,
 } from "@mui/material";
 
-// Utility functions
+// --- Utility Functions ---
 function makeRoomCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let s = "";
@@ -29,13 +39,12 @@ function readRoomFromUrl() {
     if (p.length >= 2 && p[0].toLowerCase() === "lobby")
       return p[1].toUpperCase();
     return null;
-  } catch (e) {
+  } catch {
     return null;
   }
 }
 
 const SAMPLE_WORDS = [
-  // Agile / Project Management
   "SPRINT",
   "BACKLOG",
   "USERSTORY",
@@ -46,8 +55,6 @@ const SAMPLE_WORDS = [
   "VELOCITY",
   "PRODUCTOWNER",
   "SCRUMMASTER",
-
-  // IT / Tech Concepts
   "API",
   "DATABASE",
   "CLOUD",
@@ -68,12 +75,12 @@ export default function App() {
   const [playerId, setPlayerId] = useState(null);
   const [isHost, setIsHost] = useState(false);
   const [clueText, setClueText] = useState("");
-  const [voteFor, setVoteFor] = useState("");
   const [timeLeft, setTimeLeft] = useState(60);
   const [timeLimit, setTimeLimit] = useState(60);
   const timerRef = useRef(null);
   const [selectedVotePlayer, setSelectedVotePlayer] = useState(null);
 
+  // Read room from URL on mount
   useEffect(() => {
     const r = readRoomFromUrl();
     if (r) {
@@ -82,6 +89,7 @@ export default function App() {
     }
   }, []);
 
+  // Subscribe to room updates
   useEffect(() => {
     if (!roomCode) return setRoom(null);
     const roomRef = ref(db, `rooms/${roomCode}`);
@@ -93,6 +101,37 @@ export default function App() {
     });
     return () => unsub();
   }, [roomCode, playerId]);
+
+  // Get current turn player ID
+  const currentTurnPlayerId = useCallback(() => {
+    if (!room) return null;
+    const idx = room.turnIndex ?? 0;
+    if (!room.order || idx >= (room.order.length || 0)) return null;
+    return room.order[idx];
+  }, [room]);
+
+  // Timer effect
+  useEffect(() => {
+    if (!room || room.state !== "playing") {
+      setTimeLeft(timeLimit);
+      clearInterval(timerRef.current);
+      return;
+    }
+
+    function tick() {
+      const curId = currentTurnPlayerId();
+      if (curId && playerId === curId && room.turnStartedAt) {
+        const elapsed = Math.floor((Date.now() - room.turnStartedAt) / 1000);
+        const remaining = Math.max(0, (room.timeLimit || 60) - elapsed);
+        setTimeLeft(remaining);
+        if (remaining <= 0) submitDone();
+      } else setTimeLeft(room.timeLimit || 60);
+    }
+
+    tick();
+    timerRef.current = setInterval(tick, 500);
+    return () => clearInterval(timerRef.current);
+  }, [room, playerId, timeLimit, currentTurnPlayerId]);
 
   // --- Lobby / Game Handlers ---
   async function handleCreate() {
@@ -146,7 +185,7 @@ export default function App() {
     const link = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
     navigator.clipboard
       .writeText(link)
-      .then(() => alert("Invite link copied! ✅")) // simple alert
+      .then(() => alert("Invite link copied! ✅"))
       .catch(() => alert("Failed to copy link"));
   }
 
@@ -165,18 +204,14 @@ export default function App() {
     const impostorId = playerIds[impIndex];
 
     const crewIds = playerIds.filter((id) => id !== impostorId);
-    // Shuffle crew only
     const shuffledCrew = [...crewIds].sort(() => Math.random() - 0.5);
 
-    // Impostor always placed **after first 3 turns**
     let order = [...shuffledCrew];
     if (shuffledCrew.length >= 3) {
       const insertPos =
         Math.floor(Math.random() * (shuffledCrew.length - 2)) + 3;
-      // Impostor comes **after 3rd turn**
       order.splice(insertPos, 0, impostorId);
     } else {
-      // If less than 3 crew, just put impostor last
       order.push(impostorId);
     }
 
@@ -192,36 +227,7 @@ export default function App() {
     });
   }
 
-  function currentTurnPlayerId() {
-    if (!room) return null;
-    const idx = room.turnIndex ?? 0;
-    if (!room.order || idx >= (room.order.length || 0)) return null;
-    return room.order[idx];
-  }
-
-  useEffect(() => {
-    if (!room || room.state !== "playing") {
-      setTimeLeft(timeLimit);
-      clearInterval(timerRef.current);
-      return;
-    }
-
-    function tick() {
-      const curId = currentTurnPlayerId();
-      if (curId && playerId === curId && room.turnStartedAt) {
-        const elapsed = Math.floor((Date.now() - room.turnStartedAt) / 1000);
-        const remaining = Math.max(0, (room.timeLimit || 60) - elapsed);
-        setTimeLeft(remaining);
-        if (remaining <= 0) submitDone();
-      } else setTimeLeft(room.timeLimit || 60);
-    }
-
-    tick();
-    timerRef.current = setInterval(tick, 500);
-    return () => clearInterval(timerRef.current);
-  }, [room, roomCode, playerId]);
-
-  async function submitDone() {
+  const submitDone = useCallback(async () => {
     if (!room) return;
     const curIndex = room.turnIndex || 0;
     const curPlayerId = currentTurnPlayerId();
@@ -231,17 +237,14 @@ export default function App() {
     const text = clueText.trim() || "(no clue)";
     await update(
       ref(db, `rooms/${roomCode}/clues/${curIndex}/${playerId || "host"}`),
-      {
-        name,
-        text,
-        doneAt: Date.now(),
-      }
+      { name, text, doneAt: Date.now() }
     );
     setClueText("");
 
     await runTransaction(ref(db, `rooms/${roomCode}/turnIndex`), (t) =>
       t === null ? 0 : t + 1
     );
+
     const newRoomSnap = await get(ref(db, `rooms/${roomCode}`));
     const newRoom = newRoomSnap.val();
     if (newRoom.turnIndex >= (newRoom.order || []).length) {
@@ -249,17 +252,17 @@ export default function App() {
         state: "voting",
         turnStartedAt: null,
       });
-    } else
+    } else {
       await update(ref(db, `rooms/${roomCode}`), { turnStartedAt: Date.now() });
-  }
+    }
+  }, [room, clueText, playerId, isHost, roomCode, name, currentTurnPlayerId]);
 
   async function castVote(votedId) {
     if (!room || !playerId) return;
     if (votedId === playerId) return alert("Cannot vote for yourself");
-    if (assignment === "IMPOSTOR") return;
+    if (playerId === room.impostorId) return;
 
     await update(ref(db, `rooms/${roomCode}/votes`), { [playerId]: votedId });
-    setVoteFor(votedId);
 
     const snap = await get(ref(db, `rooms/${roomCode}/players`));
     const players = snap.val() || {};
@@ -277,28 +280,8 @@ export default function App() {
 
   async function forceReveal() {
     if (!isHost) return;
-
-    // Optional: update Firebase to reset room state or remove room
     await update(ref(db, `rooms/${roomCode}`), { state: "finished" });
 
-    // Reset local states to go back to initial selection
-    setPlayerId(null);
-    setIsHost(false);
-    setRoom(null);
-    setRoomCode("");
-    setMode(null);
-
-    // Reset browser URL
-    window.history.replaceState(null, "", window.location.pathname);
-  }
-
-  async function leaveRoom() {
-    if (!roomCode || !playerId) return;
-    await runTransaction(ref(db, `rooms/${roomCode}/players`), (players) => {
-      if (!players) return {};
-      delete players[playerId];
-      return players;
-    });
     setPlayerId(null);
     setIsHost(false);
     setRoom(null);
@@ -328,21 +311,13 @@ export default function App() {
         color: "#fff",
       }}
     >
-      <Typography variant="h4" mb={3} sx={{ color: "#fff" }}>
+      <Typography variant="h4" mb={3}>
         Imposter Game
       </Typography>
 
-      {/* Initial Mode Selection */}
+      {/* --- Modes: Initial / Create / Join --- */}
       {!playerId && !mode && !roomCode && (
-        <Paper
-          sx={{
-            p: 4,
-            textAlign: "center",
-            maxWidth: 400,
-            width: "100%",
-            mx: "auto",
-          }}
-        >
+        <Paper sx={{ p: 4, textAlign: "center", maxWidth: 400, width: "100%" }}>
           <Typography variant="h6" mb={2}>
             Welcome to Imposter Game
           </Typography>
@@ -363,17 +338,8 @@ export default function App() {
         </Paper>
       )}
 
-      {/* Create / Join Lobby */}
       {mode === "create" && !playerId && (
-        <Paper
-          sx={{
-            p: 4,
-            textAlign: "center",
-            maxWidth: 400,
-            width: "100%",
-            mx: "auto",
-          }}
-        >
+        <Paper sx={{ p: 4, textAlign: "center", maxWidth: 400, width: "100%" }}>
           <Typography variant="h6" mb={2}>
             Create Lobby
           </Typography>
@@ -399,15 +365,7 @@ export default function App() {
       )}
 
       {!playerId && roomCode && (
-        <Paper
-          sx={{
-            p: 4,
-            textAlign: "center",
-            maxWidth: 400,
-            width: "100%",
-            mx: "auto",
-          }}
-        >
+        <Paper sx={{ p: 4, textAlign: "center", maxWidth: 400, width: "100%" }}>
           <Typography variant="h6" mb={2}>
             Join Lobby
           </Typography>
@@ -431,15 +389,9 @@ export default function App() {
         </Paper>
       )}
 
-      {/* Lobby & Game */}
+      {/* --- Lobby / Game / Voting / Reveal Phases --- */}
       {playerId && room && (
         <Grid container spacing={2}>
-          <Grid item xs={12}>
-            <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-              <Typography>{/* Room info */}</Typography>
-            </Box>
-          </Grid>
-
           {/* Lobby Phase */}
           {room.state === "lobby" && (
             <Grid item xs={12}>
@@ -464,7 +416,6 @@ export default function App() {
                   <Typography variant="h6">Lobby</Typography>
                   <Typography variant="h6">Room: {roomCode}</Typography>
                 </Box>
-
                 <Typography
                   variant="subtitle1"
                   sx={{ textAlign: "center", mb: 3 }}
@@ -509,14 +460,9 @@ export default function App() {
                   ))}
                 </Grid>
 
-                {/* Invite Link Section */}
-                {/* Invite Link Section */}
                 <Box sx={{ mt: 4, textAlign: "center" }}>
                   <Button
                     variant="contained"
-                    onClick={async () => {
-                      await copyInvite();
-                    }}
                     sx={{
                       bgcolor: "green",
                       "&:hover": { bgcolor: "darkgreen" },
@@ -524,6 +470,7 @@ export default function App() {
                       py: 1.5,
                       fontSize: 16,
                     }}
+                    onClick={copyInvite}
                   >
                     Copy Invite Link
                   </Button>
@@ -544,7 +491,6 @@ export default function App() {
               </Paper>
             </Grid>
           )}
-
           {/* Playing Phase */}
           {room.state === "playing" && (
             <Grid item xs={12}>
@@ -699,10 +645,6 @@ export default function App() {
 
                 <Grid container spacing={2} justifyContent="center">
                   {displayPlayers.map((p) => {
-                    const lastTurnIndex = Math.max(
-                      ...Object.keys(room.clues || {}).map(Number),
-                      0
-                    );
                     const playerTurns = Object.values(room.clues || {})
                       .map((turnMap) => turnMap[p.id]?.text)
                       .filter(Boolean);
