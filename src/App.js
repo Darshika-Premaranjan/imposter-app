@@ -1,14 +1,6 @@
 // src/App.js
 import React, { useEffect, useState, useRef } from "react";
-import {
-  db,
-  ref,
-  set,
-  onValue,
-  update,
-  get,
-  runTransaction
-} from "./firebase";
+import { db, ref, set, onValue, update, get, runTransaction } from "./firebase";
 import {
   Box,
   Typography,
@@ -16,15 +8,15 @@ import {
   Button,
   Paper,
   Avatar,
-  Grid,
-  CircularProgress,
+  Grid
 } from "@mui/material";
 
 // Utility functions
 function makeRoomCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let s = "";
-  for (let i = 0; i < 6; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < 6; i++)
+    s += chars[Math.floor(Math.random() * chars.length)];
   return s;
 }
 
@@ -34,13 +26,13 @@ function readRoomFromUrl() {
     const q = params.get("room");
     if (q) return q.toUpperCase();
     const p = window.location.pathname.split("/").filter(Boolean);
-    if (p.length >= 2 && p[0].toLowerCase() === "lobby") return p[1].toUpperCase();
+    if (p.length >= 2 && p[0].toLowerCase() === "lobby")
+      return p[1].toUpperCase();
     return null;
   } catch (e) {
     return null;
   }
 }
-
 
 const SAMPLE_WORDS = [
   // Agile / Project Management
@@ -65,9 +57,8 @@ const SAMPLE_WORDS = [
   "CI/CD",
   "JENKINS",
   "MICROSERVICES",
-  "ALGORITHM"
+  "ALGORITHM",
 ];
-
 
 export default function App() {
   const [mode, setMode] = useState(null);
@@ -81,7 +72,7 @@ export default function App() {
   const [timeLeft, setTimeLeft] = useState(60);
   const [timeLimit, setTimeLimit] = useState(60);
   const timerRef = useRef(null);
-const [selectedVotePlayer, setSelectedVotePlayer] = useState(null);
+  const [selectedVotePlayer, setSelectedVotePlayer] = useState(null);
 
   useEffect(() => {
     const r = readRoomFromUrl();
@@ -150,37 +141,44 @@ const [selectedVotePlayer, setSelectedVotePlayer] = useState(null);
     window.history.replaceState(null, "", newUrl);
   }
 
- function copyInvite() {
-  if (!roomCode) return;
-  const link = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
-  navigator.clipboard.writeText(link)
-    .then(() => alert("Invite link copied! ✅")) // simple alert
-    .catch(() => alert("Failed to copy link"));
-}
+  function copyInvite() {
+    if (!roomCode) return;
+    const link = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
+    navigator.clipboard
+      .writeText(link)
+      .then(() => alert("Invite link copied! ✅")) // simple alert
+      .catch(() => alert("Failed to copy link"));
+  }
 
   async function startGame() {
     if (!isHost || !room) return;
     const playerIds = Object.keys(room.players || {});
-    if (playerIds.length < 2 && !window.confirm("Less than 2 players. Continue?")) return;
+    if (
+      playerIds.length < 2 &&
+      !window.confirm("Less than 2 players. Continue?")
+    )
+      return;
 
-    const target = SAMPLE_WORDS[Math.floor(Math.random() * SAMPLE_WORDS.length)];
+    const target =
+      SAMPLE_WORDS[Math.floor(Math.random() * SAMPLE_WORDS.length)];
     const impIndex = Math.floor(Math.random() * playerIds.length);
     const impostorId = playerIds[impIndex];
- 
-const crewIds = playerIds.filter(id => id !== impostorId);
-// Shuffle crew only
-const shuffledCrew = [...crewIds].sort(() => Math.random() - 0.5);
 
-// Impostor always placed **after first 3 turns**
-let order = [...shuffledCrew];
-if (shuffledCrew.length >= 3) {
-  const insertPos = Math.floor(Math.random() * (shuffledCrew.length - 2)) + 3; 
-  // Impostor comes **after 3rd turn**
-  order.splice(insertPos, 0, impostorId);
-} else {
-  // If less than 3 crew, just put impostor last
-  order.push(impostorId);
-}
+    const crewIds = playerIds.filter((id) => id !== impostorId);
+    // Shuffle crew only
+    const shuffledCrew = [...crewIds].sort(() => Math.random() - 0.5);
+
+    // Impostor always placed **after first 3 turns**
+    let order = [...shuffledCrew];
+    if (shuffledCrew.length >= 3) {
+      const insertPos =
+        Math.floor(Math.random() * (shuffledCrew.length - 2)) + 3;
+      // Impostor comes **after 3rd turn**
+      order.splice(insertPos, 0, impostorId);
+    } else {
+      // If less than 3 crew, just put impostor last
+      order.push(impostorId);
+    }
 
     await update(ref(db, `rooms/${roomCode}`), {
       state: "playing",
@@ -231,19 +229,28 @@ if (shuffledCrew.length >= 3) {
     if (playerId !== curPlayerId && !isHost) return;
 
     const text = clueText.trim() || "(no clue)";
-    await update(ref(db, `rooms/${roomCode}/clues/${curIndex}/${playerId || "host"}`), {
-      name,
-      text,
-      doneAt: Date.now(),
-    });
+    await update(
+      ref(db, `rooms/${roomCode}/clues/${curIndex}/${playerId || "host"}`),
+      {
+        name,
+        text,
+        doneAt: Date.now(),
+      }
+    );
     setClueText("");
 
-    await runTransaction(ref(db, `rooms/${roomCode}/turnIndex`), (t) => (t === null ? 0 : t + 1));
+    await runTransaction(ref(db, `rooms/${roomCode}/turnIndex`), (t) =>
+      t === null ? 0 : t + 1
+    );
     const newRoomSnap = await get(ref(db, `rooms/${roomCode}`));
     const newRoom = newRoomSnap.val();
     if (newRoom.turnIndex >= (newRoom.order || []).length) {
-      await update(ref(db, `rooms/${roomCode}`), { state: "voting", turnStartedAt: null });
-    } else await update(ref(db, `rooms/${roomCode}`), { turnStartedAt: Date.now() });
+      await update(ref(db, `rooms/${roomCode}`), {
+        state: "voting",
+        turnStartedAt: null,
+      });
+    } else
+      await update(ref(db, `rooms/${roomCode}`), { turnStartedAt: Date.now() });
   }
 
   async function castVote(votedId) {
@@ -256,32 +263,34 @@ if (shuffledCrew.length >= 3) {
 
     const snap = await get(ref(db, `rooms/${roomCode}/players`));
     const players = snap.val() || {};
-    const crewCount = Object.values(players).filter((p) => p.id !== room.impostorId).length;
+    const crewCount = Object.values(players).filter(
+      (p) => p.id !== room.impostorId
+    ).length;
     const votesSnap = await get(ref(db, `rooms/${roomCode}/votes`));
-    const votesCount = votesSnap.exists() ? Object.keys(votesSnap.val()).length : 0;
+    const votesCount = votesSnap.exists()
+      ? Object.keys(votesSnap.val()).length
+      : 0;
 
-    if (votesCount >= crewCount) await update(ref(db, `rooms/${roomCode}`), { state: "reveal" });
+    if (votesCount >= crewCount)
+      await update(ref(db, `rooms/${roomCode}`), { state: "reveal" });
   }
 
- async function forceReveal() {
-  if (!isHost) return;
+  async function forceReveal() {
+    if (!isHost) return;
 
-  // Optional: update Firebase to reset room state or remove room
-  await update(ref(db, `rooms/${roomCode}`), { state: "finished" });
+    // Optional: update Firebase to reset room state or remove room
+    await update(ref(db, `rooms/${roomCode}`), { state: "finished" });
 
-  // Reset local states to go back to initial selection
-  setPlayerId(null);
-  setIsHost(false);
-  setRoom(null);
-  setRoomCode("");
-  setMode(null);
+    // Reset local states to go back to initial selection
+    setPlayerId(null);
+    setIsHost(false);
+    setRoom(null);
+    setRoomCode("");
+    setMode(null);
 
-  // Reset browser URL
-  window.history.replaceState(null, "", window.location.pathname);
-}
-
-
-
+    // Reset browser URL
+    window.history.replaceState(null, "", window.location.pathname);
+  }
 
   async function leaveRoom() {
     if (!roomCode || !playerId) return;
@@ -306,7 +315,7 @@ if (shuffledCrew.length >= 3) {
       : "CREW"
     : null;
 
-   return (
+  return (
     <Box
       sx={{
         minHeight: "100vh",
@@ -325,14 +334,30 @@ if (shuffledCrew.length >= 3) {
 
       {/* Initial Mode Selection */}
       {!playerId && !mode && !roomCode && (
-        <Paper sx={{ p: 4, textAlign: "center", maxWidth: 400, width: "100%", mx: "auto" }}>
+        <Paper
+          sx={{
+            p: 4,
+            textAlign: "center",
+            maxWidth: 400,
+            width: "100%",
+            mx: "auto",
+          }}
+        >
           <Typography variant="h6" mb={2}>
             Welcome to Imposter Game
           </Typography>
-          <Button variant="contained" sx={{ m: 1 }} onClick={() => setMode("create")}>
+          <Button
+            variant="contained"
+            sx={{ m: 1 }}
+            onClick={() => setMode("create")}
+          >
             Create Lobby
           </Button>
-          <Button variant="outlined" sx={{ m: 1 }} onClick={() => setMode("join")}>
+          <Button
+            variant="outlined"
+            sx={{ m: 1 }}
+            onClick={() => setMode("join")}
+          >
             Join Lobby
           </Button>
         </Paper>
@@ -340,20 +365,69 @@ if (shuffledCrew.length >= 3) {
 
       {/* Create / Join Lobby */}
       {mode === "create" && !playerId && (
-        <Paper sx={{ p: 4, textAlign: "center", maxWidth: 400, width: "100%", mx: "auto" }}>
-          <Typography variant="h6" mb={2}>Create Lobby</Typography>
-          <TextField fullWidth label="Your Name" value={name} onChange={(e) => setName(e.target.value)} sx={{ mb: 2 }} />
-          <TextField fullWidth type="number" label="Time Limit (seconds)" value={timeLimit} onChange={(e) => setTimeLimit(Number(e.target.value))} sx={{ mb: 2 }} />
-          <Button fullWidth variant="contained" onClick={handleCreate}>Create Lobby</Button>
+        <Paper
+          sx={{
+            p: 4,
+            textAlign: "center",
+            maxWidth: 400,
+            width: "100%",
+            mx: "auto",
+          }}
+        >
+          <Typography variant="h6" mb={2}>
+            Create Lobby
+          </Typography>
+          <TextField
+            fullWidth
+            label="Your Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            fullWidth
+            type="number"
+            label="Time Limit (seconds)"
+            value={timeLimit}
+            onChange={(e) => setTimeLimit(Number(e.target.value))}
+            sx={{ mb: 2 }}
+          />
+          <Button fullWidth variant="contained" onClick={handleCreate}>
+            Create Lobby
+          </Button>
         </Paper>
       )}
 
       {!playerId && roomCode && (
-        <Paper sx={{ p: 4, textAlign: "center", maxWidth: 400, width: "100%", mx: "auto" }}>
-          <Typography variant="h6" mb={2}>Join Lobby</Typography>
-          <TextField fullWidth label="Your Name" value={name} onChange={(e) => setName(e.target.value)} sx={{ mb: 2 }} />
-          <TextField fullWidth label="Lobby Code" value={roomCode} InputProps={{ readOnly: true }} sx={{ mb: 2 }} />
-          <Button fullWidth variant="contained" onClick={handleJoin}>Join Lobby</Button>
+        <Paper
+          sx={{
+            p: 4,
+            textAlign: "center",
+            maxWidth: 400,
+            width: "100%",
+            mx: "auto",
+          }}
+        >
+          <Typography variant="h6" mb={2}>
+            Join Lobby
+          </Typography>
+          <TextField
+            fullWidth
+            label="Your Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            fullWidth
+            label="Lobby Code"
+            value={roomCode}
+            InputProps={{ readOnly: true }}
+            sx={{ mb: 2 }}
+          />
+          <Button fullWidth variant="contained" onClick={handleJoin}>
+            Join Lobby
+          </Button>
         </Paper>
       )}
 
@@ -366,91 +440,160 @@ if (shuffledCrew.length >= 3) {
             </Box>
           </Grid>
 
-{/* Lobby Phase */}
-{room.state === "lobby" && (
-  <Grid item xs={12}>
-    <Paper sx={{ p: 3, borderRadius: 3, boxShadow: 3, minHeight: "70vh", position: "relative", display: "flex", flexDirection: "column" }}>
-      
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
-        <Typography variant="h6">Lobby</Typography>
-        <Typography variant="h6">Room: {roomCode}</Typography>
-      </Box>
-      
-      <Typography variant="subtitle1" sx={{ textAlign: "center", mb: 3 }}>
-        {displayPlayers.length} players joined
-      </Typography>
+          {/* Lobby Phase */}
+          {room.state === "lobby" && (
+            <Grid item xs={12}>
+              <Paper
+                sx={{
+                  p: 3,
+                  borderRadius: 3,
+                  boxShadow: 3,
+                  minHeight: "70vh",
+                  position: "relative",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    mb: 2,
+                  }}
+                >
+                  <Typography variant="h6">Lobby</Typography>
+                  <Typography variant="h6">Room: {roomCode}</Typography>
+                </Box>
 
-      <Grid container spacing={3} justifyContent="center">
-        {displayPlayers.map((p) => (
-          <Grid item xs={6} sm={3} key={p.id}>
-            <Paper elevation={3} sx={{ p: 2, textAlign: "center", borderRadius: 2, bgcolor: p.id === room.hostId ? "#e3f2fd" : "#fff" }}>
-              <Avatar sx={{ bgcolor: p.id === room.hostId ? "#1976d2" : "#9e9e9e", width: 70, height: 70, mx: "auto", fontSize: 24 }}>
-                {p.name[0].toUpperCase()}
-              </Avatar>
-              <Typography variant="subtitle1" sx={{ mt: 1 }}>{p.name}</Typography>
-              {p.id === room.hostId && <Typography variant="caption" color="primary">Host</Typography>}
-            </Paper>
-          </Grid>
-        ))}
-      </Grid>
+                <Typography
+                  variant="subtitle1"
+                  sx={{ textAlign: "center", mb: 3 }}
+                >
+                  {displayPlayers.length} players joined
+                </Typography>
 
-      {/* Invite Link Section */}
-{/* Invite Link Section */}
-<Box sx={{ mt: 4, textAlign: "center" }}>
-  <Button
-    variant="contained"
-    onClick={async () => {
-      await copyInvite();
-    }}
-    sx={{
-      bgcolor: "green",
-      "&:hover": { bgcolor: "darkgreen" },
-      px: 4,
-      py: 1.5,
-      fontSize: 16,
-    }}
-  >
-    Copy Invite Link
-  </Button>
-</Box>
+                <Grid container spacing={3} justifyContent="center">
+                  {displayPlayers.map((p) => (
+                    <Grid item xs={6} sm={3} key={p.id}>
+                      <Paper
+                        elevation={3}
+                        sx={{
+                          p: 2,
+                          textAlign: "center",
+                          borderRadius: 2,
+                          bgcolor: p.id === room.hostId ? "#e3f2fd" : "#fff",
+                        }}
+                      >
+                        <Avatar
+                          sx={{
+                            bgcolor:
+                              p.id === room.hostId ? "#1976d2" : "#9e9e9e",
+                            width: 70,
+                            height: 70,
+                            mx: "auto",
+                            fontSize: 24,
+                          }}
+                        >
+                          {p.name[0].toUpperCase()}
+                        </Avatar>
+                        <Typography variant="subtitle1" sx={{ mt: 1 }}>
+                          {p.name}
+                        </Typography>
+                        {p.id === room.hostId && (
+                          <Typography variant="caption" color="primary">
+                            Host
+                          </Typography>
+                        )}
+                      </Paper>
+                    </Grid>
+                  ))}
+                </Grid>
 
+                {/* Invite Link Section */}
+                {/* Invite Link Section */}
+                <Box sx={{ mt: 4, textAlign: "center" }}>
+                  <Button
+                    variant="contained"
+                    onClick={async () => {
+                      await copyInvite();
+                    }}
+                    sx={{
+                      bgcolor: "green",
+                      "&:hover": { bgcolor: "darkgreen" },
+                      px: 4,
+                      py: 1.5,
+                      fontSize: 16,
+                    }}
+                  >
+                    Copy Invite Link
+                  </Button>
+                </Box>
 
-      {isHost && (
-        <Box sx={{ mt: 4, textAlign: "center" }}>
-          <Button variant="contained" color="primary" onClick={startGame} sx={{ px: 6, py: 1.5, fontSize: 16 }}>
-            Start Game
-          </Button>
-        </Box>
-      )}
-    </Paper>
-  </Grid>
-)}
-
+                {isHost && (
+                  <Box sx={{ mt: 4, textAlign: "center" }}>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      onClick={startGame}
+                      sx={{ px: 6, py: 1.5, fontSize: 16 }}
+                    >
+                      Start Game
+                    </Button>
+                  </Box>
+                )}
+              </Paper>
+            </Grid>
+          )}
 
           {/* Playing Phase */}
           {room.state === "playing" && (
             <Grid item xs={12}>
               <Paper sx={{ p: 2, textAlign: "center", mb: 2 }}>
-<Box sx={{ textAlign: "center", mb: 2 }}>
-  <Typography variant="h5" sx={{ fontWeight: "bold", mb: 1 }}>
-    Your Role:{" "}
-    <span style={{ color: assignment === "IMPOSTOR" ? "#d32f2f" : "#1976d2" }}>
-      {assignment}
-    </span>
-  </Typography>
+                <Box sx={{ textAlign: "center", mb: 2 }}>
+                  <Typography variant="h5" sx={{ fontWeight: "bold", mb: 1 }}>
+                    Your Role:{" "}
+                    <span
+                      style={{
+                        color:
+                          assignment === "IMPOSTOR" ? "#d32f2f" : "#1976d2",
+                      }}
+                    >
+                      {assignment}
+                    </span>
+                  </Typography>
 
-  {assignment !== "IMPOSTOR" && (
-    <Typography variant="h4" sx={{ fontWeight: "bold", color: "#d32f2f", mb: 1 }}>
-      Target Word: {room.targetWord}
-    </Typography>
-  )}
+                  {assignment !== "IMPOSTOR" && (
+                    <Typography
+                      variant="h4"
+                      sx={{ fontWeight: "bold", color: "#d32f2f", mb: 1 }}
+                    >
+                      Target Word: {room.targetWord}
+                    </Typography>
+                  )}
 
-  <Typography variant="h5" sx={{ fontWeight: "bold" }}>
-    Current Turn: {room.players[curPlayerId]?.name || "Loading..."}
-  </Typography>
-</Box>
+                  <Typography variant="h5" sx={{ fontWeight: "bold" }}>
+                    Current Turn:{" "}
+                    {room.players[curPlayerId]?.name || "Loading..."}
+                  </Typography>
+                </Box>
 
-                {playerId === curPlayerId && <Box sx={{ mt: 2, display: "inline-block", px: 3, py: 1, bgcolor: "#f44336", color: "#fff", borderRadius: 2, fontWeight: "bold", fontSize: 24 }}>{timeLeft}s</Box>}
+                {playerId === curPlayerId && (
+                  <Box
+                    sx={{
+                      mt: 2,
+                      display: "inline-block",
+                      px: 3,
+                      py: 1,
+                      bgcolor: "#f44336",
+                      color: "#fff",
+                      borderRadius: 2,
+                      fontWeight: "bold",
+                      fontSize: 24,
+                    }}
+                  >
+                    {timeLeft}s
+                  </Box>
+                )}
               </Paper>
 
               {/* Player Clues Grid */}
@@ -463,10 +606,39 @@ if (shuffledCrew.length >= 3) {
                   return (
                     <Grid item key={p.id} sx={{ textAlign: "center" }}>
                       {playerClues.map((c, idx) => (
-                        <Box key={idx} sx={{ bgcolor: "green", color: "#fff", px: 2, py: 1, borderRadius: 2, mb: 1, fontWeight: 500, fontSize: 14, textAlign: "center", minWidth: 80 }}>{c}</Box>
+                        <Box
+                          key={idx}
+                          sx={{
+                            bgcolor: "green",
+                            color: "#fff",
+                            px: 2,
+                            py: 1,
+                            borderRadius: 2,
+                            mb: 1,
+                            fontWeight: 500,
+                            fontSize: 14,
+                            textAlign: "center",
+                            minWidth: 80,
+                          }}
+                        >
+                          {c}
+                        </Box>
                       ))}
-                      <Avatar sx={{ bgcolor: "#ccc", width: 80, height: 80, mx: "auto", mt: 1, fontSize: 28 }}>{p.name[0].toUpperCase()}</Avatar>
-                      <Typography variant="h6" sx={{ mt: 1 }}>{p.name}</Typography>
+                      <Avatar
+                        sx={{
+                          bgcolor: "#ccc",
+                          width: 80,
+                          height: 80,
+                          mx: "auto",
+                          mt: 1,
+                          fontSize: 28,
+                        }}
+                      >
+                        {p.name[0].toUpperCase()}
+                      </Avatar>
+                      <Typography variant="h6" sx={{ mt: 1 }}>
+                        {p.name}
+                      </Typography>
                     </Grid>
                   );
                 })}
@@ -476,165 +648,262 @@ if (shuffledCrew.length >= 3) {
               {playerId === curPlayerId && (
                 <Box sx={{ mt: 2, maxWidth: 400, mx: "auto" }}>
                   <TextField
-                    fullWidth multiline rows={3} value={clueText} onChange={(e) => setClueText(e.target.value)}
+                    fullWidth
+                    multiline
+                    rows={3}
+                    value={clueText}
+                    onChange={(e) => setClueText(e.target.value)}
                     placeholder="Type your clue..."
                     sx={{
-                      bgcolor: "#fff", borderRadius: 2,
+                      bgcolor: "#fff",
+                      borderRadius: 2,
                       "& .MuiInputBase-input": { color: "#000" },
-                      "& .MuiOutlinedInput-root": { "& fieldset": { borderColor: "#ccc" }, "&:hover fieldset": { borderColor: "#1976d2" }, "&.Mui-focused fieldset": { borderColor: "#1976d2" } },
+                      "& .MuiOutlinedInput-root": {
+                        "& fieldset": { borderColor: "#ccc" },
+                        "&:hover fieldset": { borderColor: "#1976d2" },
+                        "&.Mui-focused fieldset": { borderColor: "#1976d2" },
+                      },
                     }}
                   />
-                  <Button variant="contained" onClick={submitDone} sx={{ mt: 1 }}>Done</Button>
+                  <Button
+                    variant="contained"
+                    onClick={submitDone}
+                    sx={{ mt: 1 }}
+                  >
+                    Done
+                  </Button>
                 </Box>
               )}
             </Grid>
           )}
 
-   {/* Voting Phase */}
-{/* Voting Phase */}
-{room.state === "voting" && (
-  <Grid item xs={12}>
-    <Paper sx={{ p: 2 }}>
-      <Typography variant="h6" align="center" sx={{ mb: 2 }}>Voting Phase</Typography>
+          {/* Voting Phase */}
+          {/* Voting Phase */}
+          {room.state === "voting" && (
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2 }}>
+                <Typography variant="h6" align="center" sx={{ mb: 2 }}>
+                  Voting Phase
+                </Typography>
 
-      {assignment === "IMPOSTOR" && (
-        <Typography variant="subtitle1" align="center" color="error" sx={{ mb: 2 }}>
-          You are the impostor, cannot vote.
-        </Typography>
-      )}
+                {assignment === "IMPOSTOR" && (
+                  <Typography
+                    variant="subtitle1"
+                    align="center"
+                    color="error"
+                    sx={{ mb: 2 }}
+                  >
+                    You are the impostor, cannot vote.
+                  </Typography>
+                )}
 
-      <Grid container spacing={2} justifyContent="center">
-        {displayPlayers.map((p) => {
-          const lastTurnIndex = Math.max(...Object.keys(room.clues || {}).map(Number), 0);
-          const playerTurns = Object.values(room.clues || {}).map(turnMap => turnMap[p.id]?.text).filter(Boolean);
-          const clueText = playerTurns.length > 0 ? playerTurns[playerTurns.length - 1] : "(no clue)";
+                <Grid container spacing={2} justifyContent="center">
+                  {displayPlayers.map((p) => {
+                    const lastTurnIndex = Math.max(
+                      ...Object.keys(room.clues || {}).map(Number),
+                      0
+                    );
+                    const playerTurns = Object.values(room.clues || {})
+                      .map((turnMap) => turnMap[p.id]?.text)
+                      .filter(Boolean);
+                    const clueText =
+                      playerTurns.length > 0
+                        ? playerTurns[playerTurns.length - 1]
+                        : "(no clue)";
 
-          // Disable button for self, already voted, or impostor
-          const disabled = p.id === playerId || Boolean(room.votes && room.votes[playerId]) || assignment === "IMPOSTOR";
+                    // Disable button for self, already voted, or impostor
+                    const disabled =
+                      p.id === playerId ||
+                      Boolean(room.votes && room.votes[playerId]) ||
+                      assignment === "IMPOSTOR";
 
-          return (
-            <Grid item key={p.id} sx={{ textAlign: "center" }}>
-              <Box sx={{
-                bgcolor: "green",
-                color: "#fff",
-                px: 2,
-                py: 1,
-                borderRadius: 2,
-                mb: 1,
-                fontWeight: 500,
-                fontSize: 14,
-                textAlign: "center",
-                minWidth: 80
-              }}>
-                {clueText}
-              </Box>
-              <Avatar sx={{ bgcolor: "#ccc", width: 100, height: 100, mx: "auto", mt: 1, fontSize: 36 }}>
-                {p.name[0].toUpperCase()}
-              </Avatar>
-              <Button
-                variant="contained"
-                sx={{
-                  mt: 1,
-                  fontSize: 16,
-                  textTransform: "none",
-                  bgcolor: "#1976d2", // solid blue color
-                  "&:hover": { bgcolor: "#115293" },
-                  minWidth: 100,
-                }}
-                disabled={disabled}
-                onClick={() => !disabled && castVote(p.id)}
-              >
-                {p.name}
-              </Button>
+                    return (
+                      <Grid item key={p.id} sx={{ textAlign: "center" }}>
+                        <Box
+                          sx={{
+                            bgcolor: "green",
+                            color: "#fff",
+                            px: 2,
+                            py: 1,
+                            borderRadius: 2,
+                            mb: 1,
+                            fontWeight: 500,
+                            fontSize: 14,
+                            textAlign: "center",
+                            minWidth: 80,
+                          }}
+                        >
+                          {clueText}
+                        </Box>
+                        <Avatar
+                          sx={{
+                            bgcolor: "#ccc",
+                            width: 100,
+                            height: 100,
+                            mx: "auto",
+                            mt: 1,
+                            fontSize: 36,
+                          }}
+                        >
+                          {p.name[0].toUpperCase()}
+                        </Avatar>
+                        <Button
+                          variant="contained"
+                          sx={{
+                            mt: 1,
+                            fontSize: 16,
+                            textTransform: "none",
+                            bgcolor: "#1976d2", // solid blue color
+                            "&:hover": { bgcolor: "#115293" },
+                            minWidth: 100,
+                          }}
+                          disabled={disabled}
+                          onClick={() => !disabled && castVote(p.id)}
+                        >
+                          {p.name}
+                        </Button>
 
-              {disabled && room.votes && room.votes[playerId] === p.id && (
-                <Typography variant="caption" color="primary">Your Vote</Typography>
-              )}
+                        {disabled &&
+                          room.votes &&
+                          room.votes[playerId] === p.id && (
+                            <Typography variant="caption" color="primary">
+                              Your Vote
+                            </Typography>
+                          )}
+                      </Grid>
+                    );
+                  })}
+                </Grid>
+              </Paper>
             </Grid>
-          );
-        })}
-      </Grid>
-    </Paper>
-  </Grid>
-)}
-
+          )}
 
           {/* Reveal Phase */}
-{/* Reveal Phase */}
-{room.state === "reveal" && (
-  <Grid item xs={12}>
-    <Paper sx={{ p: 4, borderRadius: 3, boxShadow: 5, textAlign: "center", maxWidth: 600, mx: "auto" }}>
-      <Typography variant="h4" gutterBottom>Reveal Phase</Typography>
+          {/* Reveal Phase */}
+          {room.state === "reveal" && (
+            <Grid item xs={12}>
+              <Paper
+                sx={{
+                  p: 4,
+                  borderRadius: 3,
+                  boxShadow: 5,
+                  textAlign: "center",
+                  maxWidth: 600,
+                  mx: "auto",
+                }}
+              >
+                <Typography variant="h4" gutterBottom>
+                  Reveal Phase
+                </Typography>
 
-      {/* Impostor & Target Word */}
-      <Grid container spacing={4} justifyContent="center" sx={{ mb: 4 }}>
-        <Grid item>
-          <Paper sx={{ p: 2, borderRadius: 2, bgcolor: "#ffe6e6" }}>
-            <Typography variant="subtitle1" color="error">Impostor</Typography>
-            <Typography variant="h6">{room.players[room.impostorId]?.name}</Typography>
-          </Paper>
-        </Grid>
-        <Grid item>
-          <Paper sx={{ p: 2, borderRadius: 2, bgcolor: "#e6f7ff" }}>
-            <Typography variant="subtitle1" color="primary">Target Word</Typography>
-            <Typography variant="h6">{room.targetWord}</Typography>
-          </Paper>
-        </Grid>
-      </Grid>
+                {/* Impostor & Target Word */}
+                <Grid
+                  container
+                  spacing={4}
+                  justifyContent="center"
+                  sx={{ mb: 4 }}
+                >
+                  <Grid item>
+                    <Paper sx={{ p: 2, borderRadius: 2, bgcolor: "#ffe6e6" }}>
+                      <Typography variant="subtitle1" color="error">
+                        Impostor
+                      </Typography>
+                      <Typography variant="h6">
+                        {room.players[room.impostorId]?.name}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item>
+                    <Paper sx={{ p: 2, borderRadius: 2, bgcolor: "#e6f7ff" }}>
+                      <Typography variant="subtitle1" color="primary">
+                        Target Word
+                      </Typography>
+                      <Typography variant="h6">{room.targetWord}</Typography>
+                    </Paper>
+                  </Grid>
+                </Grid>
 
-      {/* Votes Section */}
-<Grid container spacing={2} justifyContent="center">
-  {Object.values(room.players || {})
-    .map((p) => ({
-      id: p.id,
-      name: p.name,
-      votes: Object.entries(room.votes || {})
-        .filter(([voterId, votedId]) => votedId === p.id)
-        .map(([voterId]) => room.players[voterId]?.name || "Unknown"),
-    }))
-    .sort((a, b) => b.votes.length - a.votes.length)
-    .map((p, idx) => (
-      <Grid item key={p.id} xs={6} sm={4}>
-        <Paper
-          sx={{
-            p: 2,
-            borderRadius: 2,
-            bgcolor: p.id === room.impostorId ? "#ffe6e6" : "#f0f0f0",
-            border: idx === 0 ? "2px solid #4caf50" : "none",
-            textAlign: "center",
-            cursor: "pointer",
-          }}
-          elevation={3}
-          onClick={() =>
-            setSelectedVotePlayer(
-              selectedVotePlayer === p.id ? null : p.id
-            )
-          }
-        >
-          <Avatar sx={{ width: 60, height: 60, mx: "auto", mb: 1, bgcolor: "#1976d2" }}>
-            {p.name[0].toUpperCase()}
-          </Avatar>
-          <Typography variant="subtitle1">{p.name}</Typography>
-          <Typography variant="h6" sx={{ mt: 1, color: "#333" }}>
-            {p.votes.length} vote{p.votes.length !== 1 ? "s" : ""}
-          </Typography>
+                {/* Votes Section */}
+                <Grid container spacing={2} justifyContent="center">
+                  {Object.values(room.players || {})
+                    .map((p) => ({
+                      id: p.id,
+                      name: p.name,
+                      votes: Object.entries(room.votes || {})
+                        .filter(([voterId, votedId]) => votedId === p.id)
+                        .map(
+                          ([voterId]) =>
+                            room.players[voterId]?.name || "Unknown"
+                        ),
+                    }))
+                    .sort((a, b) => b.votes.length - a.votes.length)
+                    .map((p, idx) => (
+                      <Grid item key={p.id} xs={6} sm={4}>
+                        <Paper
+                          sx={{
+                            p: 2,
+                            borderRadius: 2,
+                            bgcolor:
+                              p.id === room.impostorId ? "#ffe6e6" : "#f0f0f0",
+                            border: idx === 0 ? "2px solid #4caf50" : "none",
+                            textAlign: "center",
+                            cursor: "pointer",
+                          }}
+                          elevation={3}
+                          onClick={() =>
+                            setSelectedVotePlayer(
+                              selectedVotePlayer === p.id ? null : p.id
+                            )
+                          }
+                        >
+                          <Avatar
+                            sx={{
+                              width: 60,
+                              height: 60,
+                              mx: "auto",
+                              mb: 1,
+                              bgcolor: "#1976d2",
+                            }}
+                          >
+                            {p.name[0].toUpperCase()}
+                          </Avatar>
+                          <Typography variant="subtitle1">{p.name}</Typography>
+                          <Typography
+                            variant="h6"
+                            sx={{ mt: 1, color: "#333" }}
+                          >
+                            {p.votes.length} vote
+                            {p.votes.length !== 1 ? "s" : ""}
+                          </Typography>
 
-          {/* Show who voted if selected */}
-          {selectedVotePlayer === p.id && p.votes.length > 0 && (
-            <Box sx={{ mt: 1, textAlign: "center" }}>
-              <Typography variant="caption" sx={{ fontWeight: "bold" }}>Voted By:</Typography>
-              {p.votes.map((voter, i) => (
-                <Typography key={i} variant="body2">{voter}</Typography>
-              ))}
-            </Box>
-          )}
-        </Paper>
-      </Grid>
-    ))}
-</Grid>
-    
-      {isHost && (
-                  <Button variant="contained" onClick={forceReveal} sx={{ mt: 2 }}>
+                          {/* Show who voted if selected */}
+                          {selectedVotePlayer === p.id &&
+                            p.votes.length > 0 && (
+                              <Box sx={{ mt: 1, textAlign: "center" }}>
+                                <Typography
+                                  variant="caption"
+                                  sx={{ fontWeight: "bold" }}
+                                >
+                                  Voted By:
+                                </Typography>
+                                {p.votes.map((voter, i) => (
+                                  <Typography key={i} variant="body2">
+                                    {voter}
+                                  </Typography>
+                                ))}
+                              </Box>
+                            )}
+                        </Paper>
+                      </Grid>
+                    ))}
+                </Grid>
+
+                {isHost && (
+                  <Button
+                    variant="contained"
+                    onClick={forceReveal}
+                    sx={{ mt: 2 }}
+                  >
                     Next Round
                   </Button>
                 )}
