@@ -4,12 +4,10 @@ import {
   db,
   ref,
   set,
-  push,
   onValue,
   update,
   get,
-  runTransaction,
-  serverTimestamp,
+  runTransaction
 } from "./firebase";
 import {
   Box,
@@ -21,7 +19,6 @@ import {
   Grid,
   CircularProgress,
 } from "@mui/material";
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper as MuiPaper } from "@mui/material";
 
 // Utility functions
 function makeRoomCode() {
